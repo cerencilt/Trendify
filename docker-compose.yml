@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: trendify_db
+    environment:
+      POSTGRES_DB: trendify
+      POSTGRES_USER: trendify_user
+      POSTGRES_PASSWORD: trendify_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: trendify_backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://trendify_user:trendify_pass@db:5432/trendify
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    container_name: trendify_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
