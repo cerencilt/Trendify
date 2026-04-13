@@ -1,4 +1,3 @@
-import sys
 import os
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -8,12 +7,6 @@ from dotenv import load_dotenv
 
 # .env dosyasını yükle
 load_dotenv()
-
-# NanoChat reposunu Python path'e ekle
-NANOCHAT_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'nanochat')
-sys.path.insert(0, NANOCHAT_PATH)
-
-from nanochat.engine import Engine
 
 # OpenAI client - API key .env'den okunuyor
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -39,7 +32,6 @@ Lütfen şunları öner:
 3. İçerik açıklaması
 4. Müzik önerisi
 """
-
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
