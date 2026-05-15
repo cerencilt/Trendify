@@ -1,0 +1,93 @@
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+
+Found 53 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: corsheaders, messages, rest_framework, staticfiles
+  Apply all migrations: admin, analysis, auth, contenttypes, recommendations, sessions, users
+Synchronizing apps without migrations:
+  Creating tables...
+    Running deferred SQL...
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0001_initial... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying auth.0012_alter_user_first_name_max_length... OK
+  Applying users.0001_initial... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying analysis.0001_initial... OK
+  Applying recommendations.0001_initial... OK
+test_analysis_saved_to_db (analysis.tests.TC05_ValidTextAnalysis.test_analysis_saved_to_db) ... ok
+test_response_contains_status (analysis.tests.TC05_ValidTextAnalysis.test_response_contains_status) ... ok
+test_valid_content_based_returns_201 (analysis.tests.TC05_ValidTextAnalysis.test_valid_content_based_returns_201) ... ok
+test_empty_topic_no_db_record (analysis.tests.TC06_EmptyTextAnalysis.test_empty_topic_no_db_record) ... ok
+test_empty_topic_returns_400 (analysis.tests.TC06_EmptyTextAnalysis.test_empty_topic_returns_400) ... ok
+test_missing_topic_returns_400 (analysis.tests.TC06_EmptyTextAnalysis.test_missing_topic_returns_400) ... ok
+test_topic_exceeds_max_length (analysis.tests.TC07_LongTextAnalysis.test_topic_exceeds_max_length) ... ok
+test_special_chars_processed_safely (analysis.tests.TC08_SpecialCharContent.test_special_chars_processed_safely) ... ok
+test_sql_like_input_safe (analysis.tests.TC08_SpecialCharContent.test_sql_like_input_safe) ... ok
+test_duplicate_does_not_crash (analysis.tests.TC09_DuplicateContent.test_duplicate_does_not_crash) ... ok
+test_valid_csv_returns_201 (analysis.tests.TC10_ValidCSVUpload.test_valid_csv_returns_201) ... ok
+test_wrong_columns_csv_returns_error (analysis.tests.TC11_InvalidCSVColumns.test_wrong_columns_csv_returns_error) ... ok
+test_pdf_file_rejected (analysis.tests.TC12_WrongFileType.test_pdf_file_rejected) ... ok
+test_empty_csv_does_not_crash (analysis.tests.TC13_EmptyCSV.test_empty_csv_does_not_crash) ... ok
+test_TC16_analysis_has_valid_status (analysis.tests.TC16_TC17_TC18_AnalysisStatus.test_TC16_analysis_has_valid_status) ... ok
+test_TC17_completed_analysis_has_result (analysis.tests.TC16_TC17_TC18_AnalysisStatus.test_TC17_completed_analysis_has_result) ... ok
+test_TC18_failed_analysis_has_error_or_status (analysis.tests.TC16_TC17_TC18_AnalysisStatus.test_TC18_failed_analysis_has_error_or_status) ... ok
+test_response_time_under_5_seconds (analysis.tests.TC28_AnalysisResponseTime.test_response_time_under_5_seconds) ... ok
+test_full_user_journey (recommendations.tests.IntegrationTest_FullFlow.test_full_user_journey) ... ok
+test_generate_returns_201 (recommendations.tests.TC19_SuccessfulRecommendation.test_generate_returns_201) ... ok
+test_recommendation_saved_to_db (recommendations.tests.TC19_SuccessfulRecommendation.test_recommendation_saved_to_db) ... ok
+test_response_has_expected_fields (recommendations.tests.TC19_SuccessfulRecommendation.test_response_has_expected_fields) ... ok
+test_missing_analysis_id_returns_400 (recommendations.tests.TC20_InsufficientDataRecommendation.test_missing_analysis_id_returns_400) ... ok
+test_nonexistent_analysis_id_returns_error (recommendations.tests.TC20_InsufficientDataRecommendation.test_nonexistent_analysis_id_returns_error) ... ok
+test_empty_history_returns_200 (recommendations.tests.TC21_AnalysisHistoryList.test_empty_history_returns_200) ... ok
+test_history_with_records_returns_list (recommendations.tests.TC21_AnalysisHistoryList.test_history_with_records_returns_list) ... ok
+test_user_sees_only_own_analyses (recommendations.tests.TC21_AnalysisHistoryList.test_user_sees_only_own_analyses)
+Kullan²c² yaln²zca kendi analizlerini g÷rmeli ... ok
+test_empty_analysis_list (recommendations.tests.TC22_EmptyHistory.test_empty_analysis_list) ... ok
+test_empty_recommendation_list (recommendations.tests.TC22_EmptyHistory.test_empty_recommendation_list) ... ok
+test_feedback_saved_to_db (recommendations.tests.TC23_AddFeedback.test_feedback_saved_to_db) ... ok
+test_valid_feedback_returns_201 (recommendations.tests.TC23_AddFeedback.test_valid_feedback_returns_201) ... ok
+test_only_one_feedback_in_db (recommendations.tests.TC24_DuplicateFeedback.test_only_one_feedback_in_db) ... ok
+test_second_feedback_returns_400 (recommendations.tests.TC24_DuplicateFeedback.test_second_feedback_returns_400) ... ok
+test_script_injection_in_description (recommendations.tests.TC25_SQLInjectionAttempt.test_script_injection_in_description) ... ok
+test_sql_injection_in_topic (recommendations.tests.TC25_SQLInjectionAttempt.test_sql_injection_in_topic) ... ok
+test_xss_in_topic (recommendations.tests.TC25_SQLInjectionAttempt.test_xss_in_topic) ... ok
+test_user_b_cannot_access_user_a_analysis (recommendations.tests.TC26_CrossUserDataAccess.test_user_b_cannot_access_user_a_analysis) ... ok
+test_user_b_cannot_access_user_a_recommendation (recommendations.tests.TC26_CrossUserDataAccess.test_user_b_cannot_access_user_a_recommendation) ... ok
+test_duplicate_email_returns_400 (users.tests.RegisterTests.test_duplicate_email_returns_400) ... ok
+test_short_password_returns_400 (users.tests.RegisterTests.test_short_password_returns_400) ... ok
+test_valid_register_returns_201 (users.tests.RegisterTests.test_valid_register_returns_201) ... ok
+test_valid_login_returns_200 (users.tests.TC01_ValidLogin.test_valid_login_returns_200) ... ok
+test_valid_login_returns_access_token (users.tests.TC01_ValidLogin.test_valid_login_returns_access_token) ... ok
+test_valid_login_returns_refresh_token (users.tests.TC01_ValidLogin.test_valid_login_returns_refresh_token) ... ok
+test_invalid_login_no_token (users.tests.TC02_InvalidLogin.test_invalid_login_no_token) ... ok
+test_wrong_email_returns_401 (users.tests.TC02_InvalidLogin.test_wrong_email_returns_401) ... ok
+test_wrong_password_returns_401 (users.tests.TC02_InvalidLogin.test_wrong_password_returns_401) ... ok
+test_both_empty_returns_400 (users.tests.TC03_EmptyFieldLogin.test_both_empty_returns_400) ... ok
+test_empty_email_returns_400 (users.tests.TC03_EmptyFieldLogin.test_empty_email_returns_400) ... ok
+test_empty_password_returns_400 (users.tests.TC03_EmptyFieldLogin.test_empty_password_returns_400) ... ok
+test_no_token_analysis_list_returns_401 (users.tests.TC04_UnauthorizedAccess.test_no_token_analysis_list_returns_401) ... ok
+test_no_token_me_endpoint_returns_401 (users.tests.TC04_UnauthorizedAccess.test_no_token_me_endpoint_returns_401) ... ok
+test_no_token_recommendations_returns_401 (users.tests.TC04_UnauthorizedAccess.test_no_token_recommendations_returns_401) ... ok
+
+----------------------------------------------------------------------
+Ran 53 tests in 58.227s
+
+OK
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+
+  Applying sessions.0001_initial... OK
+System check identified no issues (0 silenced).
