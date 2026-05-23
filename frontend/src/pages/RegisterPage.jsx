@@ -13,7 +13,7 @@ export default function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
@@ -31,15 +31,13 @@ export default function RegisterPage() {
     }
 
     setLoading(true)
-    setTimeout(() => {
-      const result = register(fullName, email, password)
-      if (result.success) {
-        navigate('/app/analysis')
-      } else {
-        setError(result.message)
-      }
-      setLoading(false)
-    }, 600)
+    const result = await register(fullName, email, password)
+    if (result.success) {
+      navigate('/app/analysis')
+    } else {
+      setError(result.message)
+    }
+    setLoading(false)
   }
 
   return (

@@ -11,7 +11,7 @@ export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+ const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
@@ -29,16 +29,13 @@ export default function LoginPage() {
     }
 
     setLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      const result = login(email, password)
-      if (result.success) {
-        navigate('/app/analysis')
-      } else {
-        setError(result.message)
-      }
-      setLoading(false)
-    }, 600)
+    const result = await login(email, password)
+    if (result.success) {
+      navigate('/app/analysis')
+    } else {
+      setError(result.message)
+    }
+    setLoading(false)
   }
 
   return (
