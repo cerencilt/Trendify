@@ -1,45 +1,30 @@
 import { useState, useRef, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useTheme } from '../context/ThemeContext'
-import { mockChatMessages, mockTrendingHashtags } from '../data/mockData'
+import { recommendationAPI, analysisAPI } from '../services/api'
 import {
   HiOutlinePaperAirplane,
   HiOutlineBookmark,
   HiOutlineSparkles,
 } from 'react-icons/hi2'
 
-// Simulated AI responses
-const aiResponses = {
-  zaman: 'Analiz verilerine göre, bu tür içerikler **Salı ve Cuma günleri 19:00-21:00** arasında en yüksek etkileşimi almaktadır. Benzer profildeki içerik üreticiler bu saat diliminde %25 daha fazla beğeni almıştır.',
-  hashtag: 'İçeriğiniz için şu hashtag\'leri öneriyorum:\n\n• #fashiontrends\n• #sustainablestyle\n• #outfitinspo\n• #modatrend\n• #styleoftheday\n\nBu etiketler son 7 günde keşfet sayfasında %18 daha fazla görünürlük sağlamıştır.',
-  muzik: 'Şu an trend olan ve içeriğinize uygun sesler:\n\n🎵 "Espresso" - Sabrina Carpenter\n🎵 "Birds of a Feather" - Billie Eilish\n🎵 "Nasty" - Tinashe\n\nBu sesler Instagram Reels\'de son hafta en çok kullanılan 10 ses arasında yer almaktadır.',
-  aciklama: 'İçeriğiniz için önerilen açıklama:\n\n"Stilini keşfet, trendleri yakala ✨ Bu sezon en çok tercih edilen parçalar burada! Hangisi senin favorin? 👇"\n\nSoru sorarak biten açıklamalar yorum oranını %40 artırmaktadır.',
-  default: 'Analiz sonuçlarınıza göre size yardımcı olabilirim. Aşağıdaki konularda öneri alabilisiniz:\n\n• **Paylaşım zamanı** - En uygun gün ve saat önerileri\n• **Hashtag önerileri** - Trend etiketler\n• **Müzik önerileri** - Popüler sesler\n• **Açıklama önerileri** - Etkileşimi artıran metinler',
-}
-
-function getAIResponse(message) {
-  const lower = message.toLowerCase()
-  if (lower.includes('zaman') || lower.includes('saat') || lower.includes('gün') || lower.includes('ne zaman')) {
-    return aiResponses.zaman
-  }
-  if (lower.includes('hashtag') || lower.includes('etiket') || lower.includes('tag')) {
-    return aiResponses.hashtag
-  }
-  if (lower.includes('müzik') || lower.includes('ses') || lower.includes('şarkı') || lower.includes('music')) {
-    return aiResponses.muzik
-  }
-  if (lower.includes('açıklama') || lower.includes('caption') || lower.includes('metin') || lower.includes('description')) {
-    return aiResponses.aciklama
-  }
-  return aiResponses.default
-}
-
 export default function ChatPage() {
   const { darkMode } = useTheme()
-  const [messages, setMessages] = useState(mockChatMessages)
+  const location = useLocation()
+  const analysisId = location.state?.analysisId
+
+  const [messages, setMessages] = useState([
+    {
+      id: 1,
+      role: 'assistant',
+      content: 'Merhaba! Analiz sonuçlarınıza göre size yardımcı olabilirim. Aşağıdaki konularda öneri alabilirsiniz:\n\n• **Paylaşım zamanı**\n• **Hashtag önerileri**\n• **Müzik önerileri**\n• **Açıklama önerileri**\n\nÖneri almak için "Öneri al" yazabilir veya sorularınızı sorabilirsiniz.',
+    },
+  ])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const [savedCount, setSavedCount] = useState(0)
+  const [analysisInfo, setAnalysisInfo] = useState(null)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -51,7 +36,23 @@ export default function ChatPage() {
     scrollToBottom()
   }, [messages])
 
-  const handleSend = () => {
+  // Analiz bilgilerini al
+  useEffect(() => {
+    if (analysisId) {
+      fetchAnalysisInfo()
+    }
+  }, [analysisId])
+
+  const fetchAnalysisInfo = async () => {
+    try {
+      const response = await analysisAPI.detail(analysisId)
+      setAnalysisInfo(response.data)
+    } catch (err) {
+      console.error('Analiz bilgisi alınamadı:', err)
+    }
+  }
+
+  const handleSend = async () => {
     if (!input.trim() || isTyping) return
 
     const userMessage = {
@@ -64,16 +65,50 @@ export default function ChatPage() {
     setInput('')
     setIsTyping(true)
 
-    // Simulate AI thinking
-    setTimeout(() => {
-      const response = getAIResponse(userMessage.content)
+    try {
+      if (!analysisId) {
+        setMessages(prev => [...prev, {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: 'Öneri alabilmem için önce Analysis sayfasından bir analiz başlatmanız gerekiyor.',
+        }])
+        setIsTyping(false)
+        return
+      }
+
+      // Backend'den AI önerisi al
+      const response = await recommendationAPI.generate({
+        analysis_id: analysisId,
+        platform: analysisInfo?.platform,
+        topic: analysisInfo?.topic,
+      })
+
+      const recommendation = response.data
+
+      // AI cevabını formatla
+      let aiContent = recommendation.reasoning || ''
+
+      if (recommendation.post_time !== null) {
+        aiContent += `\n\n📅 **En iyi paylaşım zamanı:** ${recommendation.best_day} ${recommendation.post_time}:00`
+      }
+
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         role: 'assistant',
-        content: response,
+        content: aiContent,
+        recommendationId: recommendation.id,
       }])
+
+    } catch (err) {
+      const errorMsg = err.response?.data?.error || 'Bir hata oluştu. Lütfen tekrar deneyin.'
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: `❌ ${errorMsg}`,
+      }])
+    } finally {
       setIsTyping(false)
-    }, 1000 + Math.random() * 1000)
+    }
   }
 
   const handleKeyDown = (e) => {
@@ -106,29 +141,23 @@ export default function ChatPage() {
               Last Analysis
             </p>
             <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              Moda on Instagram (Engagement)
+              {analysisInfo
+                ? `${analysisInfo.topic} on ${analysisInfo.platform}`
+                : 'Analiz seçilmedi'}
             </p>
           </div>
 
-          <div>
-            <p className={`text-xs font-medium uppercase tracking-wider mb-2 ${darkMode ? 'text-dark-500' : 'text-gray-400'}`}>
-              Trending Now
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {mockTrendingHashtags.slice(0, 6).map(tag => (
-                <span
-                  key={tag}
-                  className={`text-xs px-2 py-1 rounded-md
-                    ${darkMode
-                      ? 'bg-primary-500/10 text-primary-400 border border-primary-500/20'
-                      : 'bg-primary-50 text-primary-600 border border-primary-200'
-                    }`}
-                >
-                  {tag}
-                </span>
-              ))}
+          {analysisInfo?.result && (
+            <div>
+              <p className={`text-xs font-medium uppercase tracking-wider mb-2 ${darkMode ? 'text-dark-500' : 'text-gray-400'}`}>
+                Analysis Stats
+              </p>
+              <div className={`text-sm space-y-1 ${darkMode ? 'text-dark-200' : 'text-gray-700'}`}>
+                <p>📊 Engagement: %{analysisInfo.result.avg_engagement_rate?.toFixed(1)}</p>
+                <p>🎯 Trend Score: {Math.round(analysisInfo.result.trend_fit_score)}/100</p>
+              </div>
             </div>
-          </div>
+          )}
 
           {savedCount > 0 && (
             <div className={`p-3 rounded-xl ${darkMode ? 'bg-green-500/10 border border-green-500/20' : 'bg-green-50 border border-green-200'}`}>
@@ -220,7 +249,7 @@ export default function ChatPage() {
           <button
             onClick={handleSend}
             disabled={!input.trim() || isTyping}
-            className="p-2.5 rounded-xl bg-primary-600 hover:bg-primary-500 text-white transition-all 
+            className="p-2.5 rounded-xl bg-primary-600 hover:bg-primary-500 text-white transition-all
                        disabled:opacity-40 disabled:hover:bg-primary-600"
           >
             <HiOutlinePaperAirplane className="w-4 h-4" />

@@ -1,0 +1,18 @@
+  dev[m
+  feature/k1-auth[m
+* [32mfeature/k1-backend-auth[m
+  feature/k2-csv[m
+  feature/k3-ai-model[m
+  feature/k3-frontend[m
+  feature/k4-docker[m
+  feature/k5-ai[m
+  main[m
+  [31mremotes/origin/HEAD[m -> origin/main
+  [31mremotes/origin/dev[m
+  [31mremotes/origin/feature/k1-auth[m
+  [31mremotes/origin/feature/k1-backend-auth[m
+  [31mremotes/origin/feature/k2-csv[m
+  [31mremotes/origin/feature/k3-frontend[m
+  [31mremotes/origin/feature/k4-docker[m
+  [31mremotes/origin/feature/k5-ai[m
+  [31mremotes/origin/main[m

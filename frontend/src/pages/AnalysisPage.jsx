@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from '../context/ThemeContext'
 import { platforms, goals, languages } from '../data/mockData'
+import { analysisAPI } from '../services/api'
 import {
   HiOutlineDocumentText,
   HiOutlineChartBarSquare,
@@ -39,24 +40,28 @@ export default function AnalysisPage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [dataClean, setDataClean] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
+  const [analysisId, setAnalysisId] = useState(null)
+  const [error, setError] = useState('')
 
   const handleSendAndClean = (e) => {
     e.preventDefault()
     if (!topic.trim()) return
 
     setDataClean(false)
+    setError('')
     setAnalyzing(true)
 
-    // Simulate data cleaning
+    // Veri temizleme simülasyonu (frontend tarafında)
     setTimeout(() => {
       setDataClean(true)
       setAnalyzing(false)
-    }, 1200)
+    }, 800)
   }
 
   const handleAnalyzeCSV = () => {
     if (!csvFile) return
     setDataClean(false)
+    setError('')
     setAnalyzing(true)
     setTimeout(() => {
       setDataClean(true)
@@ -64,17 +69,48 @@ export default function AnalysisPage() {
     }, 1500)
   }
 
-  const handleStartAnalysis = () => {
+  const handleStartAnalysis = async () => {
     setAnalyzing(true)
-    setTimeout(() => {
-      setAnalysisResult({
-        predictedEngagement: (Math.random() * 5 + 1).toFixed(1),
-        bestTime: ['Salı 20:00', 'Cuma 18:00', 'Cumartesi 21:00', 'Pazar 14:00'][Math.floor(Math.random() * 4)],
-        trendFitScore: Math.floor(Math.random() * 30 + 65),
+    setError('')
+
+    try {
+      // Backend'e analiz isteği gönder
+      const response = await analysisAPI.start({
+        input_type: 'content_based',
+        topic: topic,
+        platform: platform,
+        goal: goal,
+        language: language === 'Türkçe (TR)' ? 'tr' : 'en',
+        description: description,
       })
+
+      const data = response.data
+      setAnalysisId(data.id)
+
+      // Sonucu state'e koy
+      if (data.result) {
+        const dayNames = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+        const bestDayName = dayNames[data.result.best_day] || 'Bilinmiyor'
+        const bestTimeStr = data.result.best_post_time !== null && data.result.best_post_time !== undefined
+  ? `${bestDayName} ${data.result.best_post_time}:00`
+  : bestDayName !== 'Bilinmiyor'
+    ? `${bestDayName} (saat verisi yok)`
+    : 'Veri yetersiz'
+
+        setAnalysisResult({
+          predictedEngagement: data.result.avg_engagement_rate?.toFixed(1) || '0',
+          bestTime: bestTimeStr,
+          trendFitScore: Math.round(data.result.trend_fit_score) || 0,
+        })
+      }
+
       setStep(2)
+    } catch (err) {
+      const message = err.response?.data?.error || 'Analiz sırasında bir hata oluştu.'
+      setError(message)
+    } finally {
       setAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const stepLabels = ['1. Data Entry', '2. Results', '3. Recommendations']
@@ -303,6 +339,17 @@ export default function AnalysisPage() {
               </div>
             )}
 
+            {/* Error message */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400"
+              >
+                {error}
+              </motion.div>
+            )}
+
             {/* Data Clean Status */}
             {dataClean && (
               <motion.div
@@ -389,7 +436,7 @@ export default function AnalysisPage() {
 
             {/* Navigate to AI Chat */}
             <button
-              onClick={() => navigate('/app/chat')}
+              onClick={() => navigate('/app/chat', { state: { analysisId } })}
               className="btn-primary flex items-center gap-2"
             >
               Go to AI Chat for Recommendations
