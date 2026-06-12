@@ -83,6 +83,23 @@ def analysis_result(request, pk):
     return Response(serializer.data)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def validate_model(request):
+    """Modelin doğruluğunu test eder"""
+    platform = request.query_params.get('platform', 'Instagram')
+
+    from .services import validate_recommendation
+    result = validate_recommendation(platform)
+
+    if result is None:
+        return Response(
+            {'error': 'Doğrulama için yeterli veri yok.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    return Response(result)
+
 from django.shortcuts import render
 
 # Create your views here.

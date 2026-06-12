@@ -184,3 +184,95 @@ def _build_content_performance(df):
         return {k: round(float(v), 2) for k, v in result.items()}
     except Exception:
         return None
+
+
+def validate_recommendation(platform, content_type=None):
+    """
+    Modelin önerisini gerçek veriyle doğrular (k-fold cross validation yaklaşımı).
+    """
+    from .models import SocialMediaPost
+    import pandas as pd
+    import numpy as np
+
+    # Tüm veriyi al
+    queryset = SocialMediaPost.objects.filter(platform=platform)
+
+    if not queryset.exists():
+        return None
+
+    df = pd.DataFrame(list(queryset.values()))
+
+    # Sadece geçerli verileri tut
+    df = df.dropna(subset=['day_of_week', 'post_time', 'likes'])
+
+    if len(df) < 50:
+        return None
+
+    # 5-fold cross validation
+    np.random.seed(42)
+    df_shuffled = df.sample(frac=1, random_state=42).reset_index(drop=True)
+    fold_size = len(df_shuffled) // 5
+
+    improvements = []
+    predictions = []
+
+    for fold in range(5):
+        # Bu fold test verisi
+        test_start = fold * fold_size
+        test_end = test_start + fold_size
+        test_df = df_shuffled[test_start:test_end]
+        train_df = pd.concat([
+            df_shuffled[:test_start],
+            df_shuffled[test_end:]
+        ])
+
+        # Eğitim verisinden en iyi gün ve saati bul
+        best_combo = train_df.groupby(
+            ['day_of_week', 'post_time']
+        )['likes'].mean().idxmax()
+        best_day, best_hour = best_combo
+
+        # Test verisinde ±2 saatlik pencerede performans
+        hour_min = max(0, best_hour - 2)
+        hour_max = min(23, best_hour + 2)
+
+        predicted_perf = test_df[
+            (test_df['day_of_week'] == best_day) &
+            (test_df['post_time'] >= hour_min) &
+            (test_df['post_time'] <= hour_max)
+            ]['likes'].mean()
+
+        overall_avg = test_df['likes'].mean()
+
+        if pd.notna(predicted_perf) and overall_avg > 0:
+            improvement = ((predicted_perf - overall_avg) / overall_avg) * 100
+            improvements.append(improvement)
+            predictions.append({
+                'day': int(best_day),
+                'hour': int(best_hour),
+                'predicted_perf': float(predicted_perf),
+                'avg_perf': float(overall_avg),
+                'improvement': float(improvement)
+            })
+
+    if not improvements:
+        return None
+
+    # Ortalama doğruluk
+    avg_improvement = np.mean(improvements)
+    std_improvement = np.std(improvements)
+
+    # En çok önerilen gün ve saat
+    best_pred = predictions[0]
+
+    return {
+        'predicted_day': best_pred['day'],
+        'predicted_hour': best_pred['hour'],
+        'predicted_performance': round(best_pred['predicted_perf'], 2),
+        'average_performance': round(best_pred['avg_perf'], 2),
+        'improvement_percentage': round(avg_improvement, 2),
+        'std_deviation': round(std_improvement, 2),
+        'fold_count': len(improvements),
+        'all_improvements': [round(i, 2) for i in improvements],
+        'is_valid': avg_improvement > 0,
+    }
