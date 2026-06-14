@@ -209,3 +209,8 @@ __marimo__/
 # OpenAI API Key
 *.env
 .env
+
+# Egitilmis model (Google Drive'da paylasiliyor)
+trendify_model/
+data/
+*.zip
