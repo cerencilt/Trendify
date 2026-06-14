@@ -1,13 +1,18 @@
 import os
+import json
+import torch
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-import json
-from openai import OpenAI
-from dotenv import load_dotenv
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-load_dotenv()
+# Model dosyalarının yolu
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'model')
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Modeli ve tokenizer'ı global olarak yükle (sadece bir kez)
+print("Trendify AI modeli yükleniyor...")
+tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+model = AutoModelForCausalLM.from_pretrained(MODEL_PATH)
+print("Trendify AI modeli hazır!")
 
 
 @csrf_exempt
@@ -19,35 +24,34 @@ def get_recommendation(request):
             platform = data.get('platform', '')
             context = data.get('context', '')
 
-            prompt = f"""Sen bir sosyal medya uzmanısın.
-Aşağıdaki bilgilere göre öneri ver:
+            # Soru formatı (Gökçe'nin belirttiği gibi)
+            soru = f"{platform} platformunda {topic} içeriği için en iyi paylaşım önerileri nelerdir? Analiz verisi: {context}"
+            prompt = f"Soru: {soru}\nCevap:"
 
-Platform: {platform}
-İçerik konusu: {topic}
-Analiz verisi: {context}
+            # Tokenize et
+            inputs = tokenizer(prompt, return_tensors="pt")
 
-Lütfen şunları öner:
-1. En iyi paylaşım zamanı
-2. Önerilen hashtagler
-3. İçerik açıklaması
-4. Müzik önerisi
-"""
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Sen bir sosyal medya içerik uzmanısın. Türkçe cevap ver."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                max_tokens=500
+            # Üret
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=200,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                top_k=50,
+                repetition_penalty=1.3,
+                no_repeat_ngram_size=3,
+                pad_token_id=tokenizer.eos_token_id
             )
 
-            recommendation = response.choices[0].message.content
+            # Decode et
+            full_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+            # Sadece "Cevap:" kısmından sonrasını al
+            if "Cevap:" in full_text:
+                recommendation = full_text.split("Cevap:")[-1].strip()
+            else:
+                recommendation = full_text.strip()
 
             return JsonResponse({
                 'status': 'success',
