@@ -209,3 +209,9 @@ __marimo__/
 # OpenAI API Key
 *.env
 .env
+# AI Model files (büyük dosyalar GitHub'a yüklenmez)
+ai_service/model/
+*.safetensors
+*.bin
+*.pt
+*.pth

@@ -1,17 +1,14 @@
-import os
-from openai import OpenAI
-from dotenv import load_dotenv
+import requests
 from analysis.models import Analysis
 from .models import Recommendation
-
-load_dotenv()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 DAY_NAMES = {
     0: 'Pazartesi', 1: 'Salı', 2: 'Çarşamba',
     3: 'Perşembe', 4: 'Cuma', 5: 'Cumartesi', 6: 'Pazar'
 }
+
+# Trendify AI endpoint URL
+TRENDIFY_AI_URL = "http://127.0.0.1:8000/api/ai/recommend/"
 
 
 def generate_recommendation(user, analysis_id, platform=None, topic=None):
@@ -39,7 +36,7 @@ def generate_recommendation(user, analysis_id, platform=None, topic=None):
         )
 
     context = _build_context(result, best_day_name, best_content_type)
-    ai_response = _call_openai(topic, platform, context)
+    ai_response = _call_trendify_ai(topic, platform, context)
 
     recommendation = Recommendation.objects.create(
         user=user,
@@ -86,36 +83,46 @@ def _build_context(result, best_day_name, best_content_type):
         )
 
     return '\n'.join(context_parts)
+# Topic'i Türkçeleştir (model Türkçe ile eğitildi)
+TOPIC_TRANSLATIONS = {
+    'travel': 'seyahat',
+    'food': 'yemek',
+    'fashion': 'moda',
+    'fitness': 'fitness',
+    'cooking': 'yemek',
+    'workout': 'fitness',
+    'recipe': 'yemek tarifi',
+    'style': 'moda',
+}
 
 
-def _call_openai(topic, platform, context):
-    prompt = f"""Sen bir sosyal medya uzmanısın.
-Aşağıdaki bilgilere göre öneri ver:
+def _call_trendify_ai(topic, platform, context):
+    """Trendify AI servisini çağırır (kendi modelimiz)"""
+    # İngilizce ise Türkçeye çevir
+    topic_lower = topic.lower().strip()
+    if topic_lower in TOPIC_TRANSLATIONS:
+        topic = TOPIC_TRANSLATIONS[topic_lower]
+    try:
+        response = requests.post(
+                TRENDIFY_AI_URL,
+                json={
+                    'topic': topic,
+                    'platform': platform,
+                    'context': context
+                },
+                timeout=120
+            )
 
-Platform: {platform}
-İçerik konusu: {topic}
-Analiz verisi: {context}
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == 'success':
+                return data.get('recommendation', '')
+            else:
+                raise ValueError(f"AI servisi hata döndü: {data.get('message')}")
+        else:
+            raise ValueError(f"AI servisi: HTTP {response.status_code}")
 
-Lütfen şunları öner:
-1. En iyi paylaşım zamanı
-2. Önerilen hashtagler
-3. İçerik açıklaması
-4. Müzik önerisi
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "system",
-                "content": "Sen bir sosyal medya içerik uzmanısın. Türkçe cevap ver."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        max_tokens=500
-    )
-
-    return response.choices[0].message.content
+    except requests.exceptions.ConnectionError:
+        raise ValueError('AI servisi çalışmıyor.')
+    except requests.exceptions.Timeout:
+        raise ValueError('AI servisi zaman aşımına uğradı.')
