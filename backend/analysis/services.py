@@ -188,25 +188,54 @@ def _build_content_performance(df):
 
 def validate_recommendation(platform, content_type=None):
     """
-    Modelin önerisini gerçek veriyle doğrular (k-fold cross validation yaklaşımı).
+    Modelin önerisini gerçek veriyle doğrular (k-fold cross validation).
+    IQR ile outlier temizleme + mean bazlı karşılaştırma.
     """
     from .models import SocialMediaPost
     import pandas as pd
     import numpy as np
 
-    # Tüm veriyi al
     queryset = SocialMediaPost.objects.filter(platform=platform)
+    total_count = queryset.count()
 
-    if not queryset.exists():
-        return None
+    if total_count == 0:
+        return {
+            'platform': platform,
+            'error': f'{platform} platformu için veri bulunamadı.',
+            'is_valid': False,
+        }
 
     df = pd.DataFrame(list(queryset.values()))
-
-    # Sadece geçerli verileri tut
     df = df.dropna(subset=['day_of_week', 'post_time', 'likes'])
+    valid_count = len(df)
+
+    if valid_count < 50:
+        return {
+            'platform': platform,
+            'total_records': total_count,
+            'valid_records': valid_count,
+            'error': f'{platform} için yeterli zaman verisi yok.',
+            'data_limitation': True,
+            'is_valid': False,
+        }
+
+    # IQR ile outlier temizleme
+    q1 = df['likes'].quantile(0.25)
+    q3 = df['likes'].quantile(0.75)
+    iqr = q3 - q1
+    upper_bound = q3 + 1.5 * iqr
+    lower_bound = max(0, q1 - 1.5 * iqr)
+
+    original_count = len(df)
+    df = df[(df['likes'] >= lower_bound) & (df['likes'] <= upper_bound)]
+    outliers_removed = original_count - len(df)
 
     if len(df) < 50:
-        return None
+        return {
+            'platform': platform,
+            'error': 'Outlier temizleme sonrası yeterli veri kalmadı.',
+            'is_valid': False,
+        }
 
     # 5-fold cross validation
     np.random.seed(42)
@@ -217,7 +246,6 @@ def validate_recommendation(platform, content_type=None):
     predictions = []
 
     for fold in range(5):
-        # Bu fold test verisi
         test_start = fold * fold_size
         test_end = test_start + fold_size
         test_df = df_shuffled[test_start:test_end]
@@ -226,13 +254,13 @@ def validate_recommendation(platform, content_type=None):
             df_shuffled[test_end:]
         ])
 
-        # Eğitim verisinden en iyi gün ve saati bul
+        # Eğitim verisinden en iyi gün-saat (MEAN ile)
         best_combo = train_df.groupby(
             ['day_of_week', 'post_time']
         )['likes'].mean().idxmax()
         best_day, best_hour = best_combo
 
-        # Test verisinde ±2 saatlik pencerede performans
+        # Test verisinde ±2 saatlik pencere (MEAN ile)
         hour_min = max(0, best_hour - 2)
         hour_max = min(23, best_hour + 2)
 
@@ -240,32 +268,37 @@ def validate_recommendation(platform, content_type=None):
             (test_df['day_of_week'] == best_day) &
             (test_df['post_time'] >= hour_min) &
             (test_df['post_time'] <= hour_max)
-            ]['likes'].mean()
+        ]['likes'].mean()
 
-        overall_avg = test_df['likes'].mean()
+        overall_mean = test_df['likes'].mean()
 
-        if pd.notna(predicted_perf) and overall_avg > 0:
-            improvement = ((predicted_perf - overall_avg) / overall_avg) * 100
+        if pd.notna(predicted_perf) and overall_mean > 0:
+            improvement = ((predicted_perf - overall_mean) / overall_mean) * 100
             improvements.append(improvement)
             predictions.append({
                 'day': int(best_day),
                 'hour': int(best_hour),
                 'predicted_perf': float(predicted_perf),
-                'avg_perf': float(overall_avg),
+                'avg_perf': float(overall_mean),
                 'improvement': float(improvement)
             })
 
     if not improvements:
-        return None
+        return {
+            'platform': platform,
+            'error': 'Doğrulama hesaplanamadı.',
+            'is_valid': False,
+        }
 
-    # Ortalama doğruluk
     avg_improvement = np.mean(improvements)
     std_improvement = np.std(improvements)
-
-    # En çok önerilen gün ve saat
     best_pred = predictions[0]
 
     return {
+        'platform': platform,
+        'total_records': total_count,
+        'valid_records': valid_count,
+        'outliers_removed': outliers_removed,
         'predicted_day': best_pred['day'],
         'predicted_hour': best_pred['hour'],
         'predicted_performance': round(best_pred['predicted_perf'], 2),
@@ -275,4 +308,7 @@ def validate_recommendation(platform, content_type=None):
         'fold_count': len(improvements),
         'all_improvements': [round(i, 2) for i in improvements],
         'is_valid': avg_improvement > 0,
+        'method': 'IQR outlier removal + mean-based 5-fold cross validation'
     }
+
+
