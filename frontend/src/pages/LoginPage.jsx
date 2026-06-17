@@ -7,13 +7,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
 
- const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setInfo('')
 
     if (!email.trim()) {
       setError('E-posta alanı zorunludur.')
@@ -36,6 +38,12 @@ export default function LoginPage() {
       setError(result.message)
     }
     setLoading(false)
+  }
+
+  const handleForgotPassword = (e) => {
+    e.preventDefault()
+    setError('')
+    setInfo('Şifre sıfırlama özelliği yakında eklenecektir. Lütfen sistem yöneticisi ile iletişime geçin.')
   }
 
   return (
@@ -74,6 +82,17 @@ export default function LoginPage() {
               className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm"
             >
               {error}
+            </motion.div>
+          )}
+
+          {/* Info message */}
+          {info && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 rounded-xl bg-primary-500/10 border border-primary-500/20 text-primary-300 text-sm"
+            >
+              {info}
             </motion.div>
           )}
 
@@ -116,7 +135,10 @@ export default function LoginPage() {
 
           {/* Footer links */}
           <div className="mt-6 text-center text-sm">
-            <button className="text-primary-400 hover:text-primary-300 transition-colors">
+            <button
+              onClick={handleForgotPassword}
+              className="text-primary-400 hover:text-primary-300 transition-colors"
+            >
               Forgot Password?
             </button>
             <span className="text-dark-500 mx-2">•</span>

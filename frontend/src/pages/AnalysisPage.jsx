@@ -70,48 +70,69 @@ export default function AnalysisPage() {
   }
 
   const handleStartAnalysis = async () => {
-    setAnalyzing(true)
-    setError('')
+  setAnalyzing(true)
+  setError('')
 
-    try {
-      // Backend'e analiz isteği gönder
-      const response = await analysisAPI.start({
+  try {
+    let analysisData = {}
+
+    if (activeTab === 'content') {
+      analysisData = {
         input_type: 'content_based',
         topic: topic,
         platform: platform,
         goal: goal,
         language: language === 'Türkçe (TR)' ? 'tr' : 'en',
         description: description,
-      })
-
-      const data = response.data
-      setAnalysisId(data.id)
-
-      // Sonucu state'e koy
-      if (data.result) {
-        const dayNames = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
-        const bestDayName = dayNames[data.result.best_day] || 'Bilinmiyor'
-        const bestTimeStr = data.result.best_post_time !== null && data.result.best_post_time !== undefined
-  ? `${bestDayName} ${data.result.best_post_time}:00`
-  : bestDayName !== 'Bilinmiyor'
-    ? `${bestDayName} (saat verisi yok)`
-    : 'Veri yetersiz'
-
-        setAnalysisResult({
-          predictedEngagement: data.result.avg_engagement_rate?.toFixed(1) || '0',
-          bestTime: bestTimeStr,
-          trendFitScore: Math.round(data.result.trend_fit_score) || 0,
-        })
       }
+    } else {
+      // Performance-Based: CSV'den platform tespit et, content_based olarak gönder
+      const fileName = csvFile?.name?.toLowerCase() || ''
+      let detectedPlatform = 'Instagram'
 
-      setStep(2)
-    } catch (err) {
-      const message = err.response?.data?.error || 'Analiz sırasında bir hata oluştu.'
-      setError(message)
-    } finally {
-      setAnalyzing(false)
+      if (fileName.includes('youtube')) detectedPlatform = 'YouTube'
+      else if (fileName.includes('tiktok')) detectedPlatform = 'TikTok'
+      else if (fileName.includes('twitter')) detectedPlatform = 'Twitter'
+      else if (fileName.includes('facebook')) detectedPlatform = 'Facebook'
+
+      analysisData = {
+        input_type: 'content_based',  // ⚠️ Backend serializer için content_based
+        topic: `CSV Analizi (${csvFile?.name || 'data'})`,
+        platform: detectedPlatform,
+        goal: 'Etkileşim (Engagement)',
+        language: 'tr',
+        description: `Yüklenen CSV dosyası: ${csvFile?.name || 'unknown'}`,
+      }
     }
+
+    const response = await analysisAPI.start(analysisData)
+    const data = response.data
+    setAnalysisId(data.id)
+
+    if (data.result) {
+      const dayNames = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+      const bestDayName = dayNames[data.result.best_day] || 'Bilinmiyor'
+      const bestTimeStr = data.result.best_post_time !== null && data.result.best_post_time !== undefined
+        ? `${bestDayName} ${data.result.best_post_time}:00`
+        : bestDayName !== 'Bilinmiyor'
+          ? `${bestDayName} (saat verisi yok)`
+          : 'Veri yetersiz'
+
+      setAnalysisResult({
+        predictedEngagement: data.result.avg_engagement_rate?.toFixed(1) || '0',
+        bestTime: bestTimeStr,
+        trendFitScore: Math.round(data.result.trend_fit_score) || 0,
+      })
+    }
+
+    setStep(2)
+  } catch (err) {
+    const message = err.response?.data?.error || 'Analiz sırasında bir hata oluştu.'
+    setError(message)
+  } finally {
+    setAnalyzing(false)
   }
+}
 
   const stepLabels = ['1. Data Entry', '2. Results', '3. Recommendations']
 
