@@ -19,11 +19,8 @@ export default function AnalysisPage() {
   const { darkMode } = useTheme()
   const navigate = useNavigate()
 
-  // Tabs
-  const [activeTab, setActiveTab] = useState('content') // content | performance
-
-  // Step management
-  const [step, setStep] = useState(1) // 1: Data Entry, 2: Results, 3: Recommendations
+  const [activeTab, setActiveTab] = useState('content')
+  const [step, setStep] = useState(1)
 
   // Content-based form
   const [topic, setTopic] = useState('')
@@ -34,6 +31,7 @@ export default function AnalysisPage() {
 
   // Performance-based form
   const [csvFile, setCsvFile] = useState(null)
+  const [csvTopic, setCsvTopic] = useState('')
   const [apiToken, setApiToken] = useState('')
 
   // Analysis state
@@ -51,7 +49,6 @@ export default function AnalysisPage() {
     setError('')
     setAnalyzing(true)
 
-    // Veri temizleme simülasyonu (frontend tarafında)
     setTimeout(() => {
       setDataClean(true)
       setAnalyzing(false)
@@ -60,6 +57,10 @@ export default function AnalysisPage() {
 
   const handleAnalyzeCSV = () => {
     if (!csvFile) return
+    if (!csvTopic.trim()) {
+      setError('Lütfen bir konu (topic) giriniz.')
+      return
+    }
     setDataClean(false)
     setError('')
     setAnalyzing(true)
@@ -70,75 +71,67 @@ export default function AnalysisPage() {
   }
 
   const handleStartAnalysis = async () => {
-  setAnalyzing(true)
-  setError('')
+    setAnalyzing(true)
+    setError('')
 
-  try {
-    let analysisData = {}
+    try {
+      let response
 
-    if (activeTab === 'content') {
-      analysisData = {
-        input_type: 'content_based',
-        topic: topic,
-        platform: platform,
-        goal: goal,
-        language: language === 'Türkçe (TR)' ? 'tr' : 'en',
-        description: description,
+      if (activeTab === 'content') {
+        // Content-Based: JSON gönder
+        response = await analysisAPI.start({
+          input_type: 'content_based',
+          topic: topic,
+          platform: platform,
+          goal: goal,
+          language: language === 'Türkçe (TR)' ? 'tr' : 'en',
+          description: description,
+        })
+      } else {
+        // Performance-Based: FormData ile CSV gönder
+        const formData = new FormData()
+        formData.append('input_type', 'performance_based')
+        formData.append('topic', csvTopic)
+        formData.append('goal', 'Etkileşim (Engagement)')
+        formData.append('language', 'tr')
+        formData.append('csv_file', csvFile)
+
+        response = await analysisAPI.start(formData)
+
       }
-    } else {
-      // Performance-Based: CSV'den platform tespit et, content_based olarak gönder
-      const fileName = csvFile?.name?.toLowerCase() || ''
-      let detectedPlatform = 'Instagram'
 
-      if (fileName.includes('youtube')) detectedPlatform = 'YouTube'
-      else if (fileName.includes('tiktok')) detectedPlatform = 'TikTok'
-      else if (fileName.includes('twitter')) detectedPlatform = 'Twitter'
-      else if (fileName.includes('facebook')) detectedPlatform = 'Facebook'
+      const data = response.data
+      setAnalysisId(data.id)
 
-      analysisData = {
-        input_type: 'content_based',  // ⚠️ Backend serializer için content_based
-        topic: `CSV Analizi (${csvFile?.name || 'data'})`,
-        platform: detectedPlatform,
-        goal: 'Etkileşim (Engagement)',
-        language: 'tr',
-        description: `Yüklenen CSV dosyası: ${csvFile?.name || 'unknown'}`,
+      if (data.result) {
+        const dayNames = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+        const bestDayName = dayNames[data.result.best_day] || 'Bilinmiyor'
+        const bestTimeStr = data.result.best_post_time !== null && data.result.best_post_time !== undefined
+          ? `${bestDayName} ${data.result.best_post_time}:00`
+          : bestDayName !== 'Bilinmiyor'
+            ? `${bestDayName} (saat verisi yok)`
+            : 'Veri yetersiz'
+
+        setAnalysisResult({
+          predictedEngagement: data.result.avg_engagement_rate?.toFixed(1) || '0',
+          bestTime: bestTimeStr,
+          trendFitScore: Math.round(data.result.trend_fit_score) || 0,
+        })
       }
+
+      setStep(2)
+    } catch (err) {
+      const message = err.response?.data?.error || 'Analiz sırasında bir hata oluştu.'
+      setError(message)
+    } finally {
+      setAnalyzing(false)
     }
-
-    const response = await analysisAPI.start(analysisData)
-    const data = response.data
-    setAnalysisId(data.id)
-
-    if (data.result) {
-      const dayNames = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
-      const bestDayName = dayNames[data.result.best_day] || 'Bilinmiyor'
-      const bestTimeStr = data.result.best_post_time !== null && data.result.best_post_time !== undefined
-        ? `${bestDayName} ${data.result.best_post_time}:00`
-        : bestDayName !== 'Bilinmiyor'
-          ? `${bestDayName} (saat verisi yok)`
-          : 'Veri yetersiz'
-
-      setAnalysisResult({
-        predictedEngagement: data.result.avg_engagement_rate?.toFixed(1) || '0',
-        bestTime: bestTimeStr,
-        trendFitScore: Math.round(data.result.trend_fit_score) || 0,
-      })
-    }
-
-    setStep(2)
-  } catch (err) {
-    const message = err.response?.data?.error || 'Analiz sırasında bir hata oluştu.'
-    setError(message)
-  } finally {
-    setAnalyzing(false)
   }
-}
 
   const stepLabels = ['1. Data Entry', '2. Results', '3. Recommendations']
 
   return (
     <div className="max-w-5xl mx-auto">
-      {/* Page Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className={`font-display text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -151,7 +144,6 @@ export default function AnalysisPage() {
         <span className="font-display text-lg font-semibold gradient-text">Trendify</span>
       </div>
 
-      {/* Step Indicator */}
       <div className="flex items-center gap-2 mb-8">
         {stepLabels.map((label, i) => (
           <button
@@ -173,7 +165,6 @@ export default function AnalysisPage() {
       </div>
 
       <AnimatePresence mode="wait">
-        {/* STEP 1: Data Entry */}
         {step === 1 && (
           <motion.div
             key="step1"
@@ -182,7 +173,6 @@ export default function AnalysisPage() {
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.3 }}
           >
-            {/* Tab Selector */}
             <div className="flex mb-6">
               <button
                 onClick={() => setActiveTab('content')}
@@ -303,6 +293,23 @@ export default function AnalysisPage() {
             {activeTab === 'performance' && (
               <div className={`${darkMode ? 'card' : 'card-light'}`}>
                 <div className="space-y-5">
+                  {/* Topic Input */}
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-dark-300' : 'text-gray-600'}`}>
+                      Topic / Keyword
+                    </label>
+                    <input
+                      type="text"
+                      value={csvTopic}
+                      onChange={e => setCsvTopic(e.target.value)}
+                      placeholder="e.g. yemek, moda, fitness, seyahat"
+                      className={darkMode ? 'input-field' : 'input-field-light'}
+                    />
+                    <p className={`text-xs mt-1 ${darkMode ? 'text-dark-500' : 'text-gray-400'}`}>
+                      CSV içinde aranacak konu (hashtag'ler veya içerik türünde aratılır)
+                    </p>
+                  </div>
+
                   {/* CSV Upload */}
                   <div>
                     <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-dark-300' : 'text-gray-600'}`}>
@@ -344,7 +351,7 @@ export default function AnalysisPage() {
 
                   <button
                     onClick={handleAnalyzeCSV}
-                    disabled={analyzing || !csvFile}
+                    disabled={analyzing || !csvFile || !csvTopic.trim()}
                     className="btn-primary disabled:opacity-50"
                   >
                     {analyzing ? (
@@ -360,7 +367,6 @@ export default function AnalysisPage() {
               </div>
             )}
 
-            {/* Error message */}
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -371,7 +377,6 @@ export default function AnalysisPage() {
               </motion.div>
             )}
 
-            {/* Data Clean Status */}
             {dataClean && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -386,7 +391,6 @@ export default function AnalysisPage() {
               </motion.div>
             )}
 
-            {/* Start Analysis Button */}
             {dataClean && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6">
                 <button onClick={handleStartAnalysis} disabled={analyzing} className="btn-primary disabled:opacity-50">
@@ -404,7 +408,6 @@ export default function AnalysisPage() {
           </motion.div>
         )}
 
-        {/* STEP 2: Results */}
         {step === 2 && analysisResult && (
           <motion.div
             key="step2"
@@ -419,7 +422,6 @@ export default function AnalysisPage() {
               </h2>
 
               <div className="grid grid-cols-3 gap-4 mb-6">
-                {/* Predicted Engagement */}
                 <div className={`p-5 rounded-xl text-center ${darkMode ? 'bg-dark-700/50 border border-dark-600/50' : 'bg-gray-50 border border-gray-200'}`}>
                   <HiOutlineSparkles className="w-6 h-6 mx-auto mb-2 text-primary-400" />
                   <p className={`text-sm mb-1 ${darkMode ? 'text-dark-400' : 'text-gray-500'}`}>Predicted Engagement</p>
@@ -428,7 +430,6 @@ export default function AnalysisPage() {
                   </p>
                 </div>
 
-                {/* Best Time to Post */}
                 <div className={`p-5 rounded-xl text-center ${darkMode ? 'bg-dark-700/50 border border-dark-600/50' : 'bg-gray-50 border border-gray-200'}`}>
                   <HiOutlineClock className="w-6 h-6 mx-auto mb-2 text-blue-400" />
                   <p className={`text-sm mb-1 ${darkMode ? 'text-dark-400' : 'text-gray-500'}`}>Best Time to Post</p>
@@ -437,7 +438,6 @@ export default function AnalysisPage() {
                   </p>
                 </div>
 
-                {/* Trend Fit Score */}
                 <div className={`p-5 rounded-xl text-center ${darkMode ? 'bg-dark-700/50 border border-dark-600/50' : 'bg-gray-50 border border-gray-200'}`}>
                   <HiOutlineFire className="w-6 h-6 mx-auto mb-2 text-orange-400" />
                   <p className={`text-sm mb-1 ${darkMode ? 'text-dark-400' : 'text-gray-500'}`}>Trend Fit Score</p>
@@ -447,7 +447,6 @@ export default function AnalysisPage() {
                 </div>
               </div>
 
-              {/* Status message */}
               <div className={`p-4 rounded-xl ${darkMode ? 'bg-primary-500/10 border border-primary-500/20' : 'bg-primary-50 border border-primary-200'}`}>
                 <p className={`text-sm ${darkMode ? 'text-primary-300' : 'text-primary-700'}`}>
                   Analysis complete. Based on current trends, your topic has high potential.
@@ -455,7 +454,6 @@ export default function AnalysisPage() {
               </div>
             </div>
 
-            {/* Navigate to AI Chat */}
             <button
               onClick={() => navigate('/app/chat', { state: { analysisId } })}
               className="btn-primary flex items-center gap-2"
