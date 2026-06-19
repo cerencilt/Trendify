@@ -33,21 +33,94 @@ def _run_content_based(analysis):
     İçerik bazlı analiz:
     Kullanıcının girdiği platform ve konuya göre
     Kaggle verisinden öneriler üretir.
+    Topic, hashtags ve content_type sütunlarında aranır.
     """
-    # Platforma göre filtrele
     queryset = SocialMediaPost.objects.all()
+
+    # Platforma göre filtrele
     if analysis.platform:
         queryset = queryset.filter(platform=analysis.platform)
 
-    # Veri yoksa hata fırlat
+    # Topic'e göre filtrele (hashtag ve content_type'da ara)
+    if analysis.topic:
+        topic = analysis.topic.strip()
+        topic_keywords = _extract_topic_keywords(topic)
+
+        # Topic'i hashtag'de ara (en az bir keyword eşleşmesi)
+        from django.db.models import Q
+        topic_filter = Q()
+        for keyword in topic_keywords:
+            topic_filter |= Q(hashtags__icontains=keyword)
+
+        topic_queryset = queryset.filter(topic_filter)
+
+        # Eğer topic ile yeterli kayıt bulunduysa onu kullan
+        if topic_queryset.count() >= 10:
+            queryset = topic_queryset
+        # Aksi takdirde platform bazlı veriyi koru (topic etkisi azalır)
+        # Ama içerik türünü topic'ten tahmin et
+        else:
+            content_type_guess = _guess_content_type(topic)
+            if content_type_guess:
+                content_filtered = queryset.filter(content_type=content_type_guess)
+                if content_filtered.count() >= 10:
+                    queryset = content_filtered
+
     if not queryset.exists():
         raise ValueError('Yeterli veri bulunamadı.')
 
-    # Pandas'a çevir
     df = _queryset_to_df(queryset)
-
     return _calculate_and_save_result(analysis, df)
 
+
+def _extract_topic_keywords(topic):
+    """
+    Topic'ten arama için anahtar kelimeleri çıkarır.
+    Türkçe ve İngilizce karşılıkları da ekler.
+    """
+    # Topic'i kelimelere ayır
+    words = topic.lower().split()
+
+    # Türkçe-İngilizce çeviri sözlüğü
+    translations = {
+        'yemek': ['food', 'recipe', 'cooking', 'tarifi', 'mutfak'],
+        'tarifi': ['recipe', 'food', 'cooking'],
+        'moda': ['fashion', 'style', 'outfit', 'trend'],
+        'stil': ['style', 'fashion'],
+        'fitness': ['fitness', 'workout', 'gym', 'spor', 'sport'],
+        'spor': ['sport', 'fitness', 'workout'],
+        'seyahat': ['travel', 'vacation', 'trip', 'gezi', 'tatil'],
+        'gezi': ['travel', 'trip', 'gezi'],
+        'food': ['food', 'yemek', 'recipe'],
+        'fashion': ['fashion', 'moda', 'style'],
+        'travel': ['travel', 'seyahat', 'gezi'],
+        'workout': ['workout', 'fitness', 'spor'],
+    }
+
+    keywords = set(words)
+    for word in words:
+        if word in translations:
+            keywords.update(translations[word])
+
+    return list(keywords)
+
+
+def _guess_content_type(topic):
+    """
+    Topic'e göre içerik türünü tahmin eder.
+    """
+    topic_lower = topic.lower()
+
+    if any(w in topic_lower for w in ['video', 'reels', 'kısa', 'tiktok']):
+        return 'Video'
+    elif any(w in topic_lower for w in ['canlı', 'live', 'yayın']):
+        return 'Live'
+    elif any(w in topic_lower for w in ['resim', 'fotoğraf', 'image', 'photo']):
+        return 'Image'
+    elif any(w in topic_lower for w in ['yazı', 'text', 'metin', 'tweet']):
+        return 'Text'
+
+    return None
 
 def _run_performance_based(analysis):
     """
