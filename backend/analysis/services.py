@@ -122,25 +122,75 @@ def _guess_content_type(topic):
 
     return None
 
+
 def _run_performance_based(analysis):
     """
     Performans bazlı analiz:
-    Kullanıcının yüklediği CSV'yi analiz eder.
+    Kullanıcının yüklediği CSV'yi okur, topic'e göre filtreler ve analiz eder.
     """
     if not analysis.csv_file:
         raise ValueError('CSV dosyası bulunamadı.')
 
     # CSV'yi oku
-    df = pd.read_csv(analysis.csv_file.path)
+    try:
+        df = pd.read_csv(analysis.csv_file.path)
+    except Exception as e:
+        raise ValueError(f'CSV dosyası okunamadı: {str(e)}')
 
     # Sütun adlarını küçük harfe çevir
     df.columns = df.columns.str.lower().str.strip()
 
     # Gerekli sütunlar var mı kontrol et
-    required_columns = ['likes', 'shares']
+    required_columns = ['likes']
     missing = [col for col in required_columns if col not in df.columns]
     if missing:
-        raise ValueError(f'CSV dosyasında eksik sütunlar: {missing}')
+        raise ValueError(f'CSV dosyasında zorunlu sütunlar eksik: {missing}')
+
+    # Boş veri kontrolü
+    if df.empty:
+        raise ValueError('CSV dosyası boş.')
+
+    original_count = len(df)
+
+    # Topic'e göre filtrele (CSV içinde)
+    if analysis.topic:
+        topic = analysis.topic.strip()
+        topic_keywords = _extract_topic_keywords(topic)
+
+        # hashtags sütununda topic ara
+        if 'hashtags' in df.columns:
+            mask = df['hashtags'].fillna('').str.lower().apply(
+                lambda x: any(kw in x for kw in topic_keywords)
+            )
+            filtered_df = df[mask]
+
+            # Yeterli kayıt varsa filtrelenmiş veriyi kullan
+            if len(filtered_df) >= 5:
+                df = filtered_df
+            else:
+                # Hashtag'lerde bulunamadıysa content_type'a bak
+                content_type_guess = _guess_content_type(topic)
+                if content_type_guess and 'content_type' in df.columns:
+                    content_filtered = df[
+                        df['content_type'].fillna('').str.lower() == content_type_guess.lower()
+                        ]
+                    if len(content_filtered) >= 5:
+                        df = content_filtered
+
+    if df.empty:
+        raise ValueError(
+            f'"{analysis.topic}" konusu için CSV dosyasında yeterli veri bulunamadı. '
+            f'Toplam {original_count} kayıt tarandı.'
+        )
+
+    # Platform'u CSV'den otomatik tespit et
+    if 'platform' in df.columns and not df['platform'].empty:
+        most_common_platform = df['platform'].mode()
+        if not most_common_platform.empty:
+            detected_platform = most_common_platform.iloc[0]
+            # Analysis nesnesine kaydet
+            analysis.platform = detected_platform
+            analysis.save()
 
     return _calculate_and_save_result(analysis, df)
 

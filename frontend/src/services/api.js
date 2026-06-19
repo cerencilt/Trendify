@@ -4,17 +4,21 @@ const API_URL = 'http://127.0.0.1:8000/api'
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 })
 
-// Her istekte token ekle (eğer varsa)
+// Her istekte token ekle (eğer varsa) ve Content-Type ayarla
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('trendify-token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+
+  // FormData ise Content-Type'ı browser otomatik ayarlasın
+  // (multipart/form-data; boundary=... şeklinde gerekli)
+  if (!(config.data instanceof FormData)) {
+    config.headers['Content-Type'] = 'application/json'
+  }
+
   return config
 })
 
